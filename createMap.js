@@ -1,4 +1,4 @@
-function createMap(topoJSON){
+function createMap(topoJSON, cod_capital){
 	var _view = new ol.View({
 		center: ol.proj.transform([0,0], 'EPSG:4326', 'EPSG:3857'),
 		zoom: 5
@@ -40,7 +40,7 @@ function createMap(topoJSON){
 	});
 
 	var _map = new ol.Map({
-		target: 'mapdiv',
+		target: 'map',
 		layers: [
 		new ol.layer.Tile({
 			source: new ol.source.OSM()
@@ -61,7 +61,7 @@ function createMap(topoJSON){
 	_map.on("pointermove", function(e) {
 		_map.forEachFeatureAtPixel(e.pixel, function (feature, layer) {
 			var clickCod = feature['n']['cod'];
-			var clickName = districts[clickCod.toString().substr(0,2)][clickCod.toString()];
+			var clickName = municipios[clickCod.toString().substr(0,2)][clickCod.toString()];
 			document.getElementById('tooltip').innerHTML = clickName;
 			if(document.getElementById('tooltip').style.display != 'block'){
 				document.getElementById('tooltip').style.display = 'block';

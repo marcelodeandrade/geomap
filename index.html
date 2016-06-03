@@ -5,31 +5,33 @@
 
 		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
 		<link rel="stylesheet" href="./ol.min.css" type="text/css">
+		<link rel="stylesheet" href="./bootstrap.min.css" type="text/css">
+
 		<script src="./jquery.min.js"></script>
 		<script src="./ol.js" type="text/javascript"></script>
 		<script src="./municipios_json.js" type="text/javascript"></script>
 		<script src="./createMap.js" type="text/javascript"></script>
 
 		<style type="text/css">
-			html, body, #mapdiv{
+			html, body, #map{
 				width: 100%;
 				height: 100%;
 				margin: 0;
 				padding: 0;
-				cursor: pointer;
 			}
-			#mapdiv{
-				position: absolute;
-				z-index: 1;
-				top: 0;
+			#map{
+				position: fixed;
 				left: 0;
+				cursor: pointer;
+				height: calc(100% - 100px);
 			}
 			#tooltip{
 				position: absolute;
 				z-index: 1000;
-				right: 8px;
-				top: 8px;
+				right: 25px;
+				top: 25px;
 				color: #FFF;
 				background-color: #4a74a8;
 				height: auto;
@@ -43,54 +45,170 @@
 				opacity: 0.7;
 				display: none;
 			}
+			#filter{
+				background-color: white;
+				width: 100%;
+				height: 100px;
+			}
 		</style>
 	</head>
 	<body>
-
-		<div id="tooltip"></div>
-		<div id="mapdiv"></div>
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-12" id="filter">
+					<form class="form-inline">
+						<fieldset>
+							<legend>Filtrar região</legend>
+							<div class="form-group">
+								<select id="estado" name="estado" class="form-control input">
+									<option value="">Selecione o Estado</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<select id="mesorregiao" name="mesorregiao" class="form-control input">
+									<option value="">Selecione a mesorregiao</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<select id="microrregiao" name="microrregiao" class="form-control input">
+									<option value="">Selecione a microrregiao</option>
+								</select>
+							</div>
+						</fieldset>
+					</form>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-md-12">
+					<div id="tooltip"></div>
+					<div id="map"></div>
+				</div>
+			</div>
+		</div>
 
 		<script type="text/javascript">
+			function initMap(codigo_estado, municipios)
+			{
+				codigo_estado = codigo_estado.toString().substr(0, 2);
 
-		var cod_capital = '';
+				var cod_capital = ufCapitais[codigo_estado];
+			    var topoJSON = "./coordenadas/estado_" + codigo_estado + '.json';
 
-		var cod_district = window.location.toString();
-		
-		if(cod_district != ''){
-			cod_district = cod_district.split('codigo=');
-			cod_district = cod_district[1];
-		}
-
-		if(typeof cod_district != 'string'){
-			cod_district = '';
-		}else{
-			cod_capital = DicUFsCapitais[cod_district];
-
-				$.support.cors = true;
-
-				var subCod = '';
-				if(cod_district.length >= 2){
-					subCod = cod_district.substr(0,2);
-				}
-
-			    // var cidadesCod = ["2704302", "1200013", "1200104", "1200179"];
-
-			    var topoJSON = "./coordenadas/estado_" + subCod + '.json';
 			    $.getJSON(topoJSON, function(topoJSON, status, xmlHttpRequest) {
-		    		geometries = topoJSON.objects[subCod]['geometries'];
-		    		
-		   //  		geometries.forEach(function (item, index) {
-		   //  			cod = item['properties']['cod'];
-	    // 				if($.inArray(cod.toString(), cidadesCod) >= 0){
-					//         geometries.splice(index, 1);
-					//     }
-					// });
-					
-					createMap(topoJSON);
-				});
-			
-		}
-	</script>
+			    	geometries = topoJSON.objects[codigo_estado]['geometries'];
 
+			    	if (municipios != null) {
+			    		municipiosArr = [];
+
+			    		$.each(JSON.parse(municipios), function(idx, obj) {
+			    			municipiosArr.push(obj.codigo);
+			    		});
+
+						for(var i = geometries.length -1; i >= 0 ; i--){
+							cod = geometries[i].properties.cod;
+							if($.inArray(cod.toString(), municipiosArr) < 0){
+						        geometries.splice(i, 1);
+							} 
+						}
+			    	}
+
+					$("#map").empty();
+					createMap(topoJSON, cod_capital);
+				});
+			}
+
+			function getMunicipios(regiao, codigo){
+				returnAjax = $.ajax({
+			    	type: 'POST',       
+			    	url: "locations.php",
+			    	async: false,
+			    	data: {
+			    		'regiao' : regiao,
+			    		'codigo' : codigo,
+			    		'mapa' : true
+			    	},
+			    	dataType: 'json',
+			    	cache: false,
+			    	success: function(data, textStatus, jqXHR) {
+			    		return data;
+			    	}
+			    }).responseText;
+
+			    return returnAjax;
+			}
+
+			$(document).ready(function () {
+				initMap(27, null);
+
+				$.ajax({
+					url:"locations.php",
+					data: {'regiao' : 'estado'},
+					dataType:"json",
+					type: 'POST',
+					cache: false,
+					success: function (data, textStatus, jqXHR) {
+						$.each(data, function(i, estado) {
+							$('select#estado').append($('<option>').text(estado.nome).attr('value', estado.codigo));
+						});
+					}
+				});
+
+				$("select#estado").on('change', function(){
+					codigo_estado = $(this).val();
+					initMap(codigo_estado, null);
+
+					$.ajax({
+						url:"locations.php",
+						data: {
+							'regiao' : 'mesorregiao',
+							'codigo' : codigo_estado
+						},
+						dataType:"json",
+						type: 'POST',
+						cache: false,
+						success: function (data, textStatus, jqXHR) {
+							$('select#mesorregiao').find('option:not(:first)').remove();
+							$.each(data, function(i, estado) {
+								$('select#mesorregiao').append($('<option>').text(estado.nome).attr('value', estado.codigo));
+							});
+						},
+						error: function (e) {
+							console.log("error");
+						}
+					});
+				});
+
+				$("select#mesorregiao").on('change', function(){
+					codigo_mesorregiao = $(this).val();
+					initMap(codigo_mesorregiao, getMunicipios('mesorregiao', codigo_mesorregiao));
+
+					$.ajax({
+						url:"locations.php",
+						data: {
+							'regiao' : 'microrregiao',
+							'codigo' : codigo_mesorregiao
+						},
+						dataType:"json",
+						type: 'POST',
+						cache: false,
+						success: function (data, textStatus, jqXHR) {
+							$('select#microrregiao').find('option:not(:first)').remove();
+							$.each(data, function(i, estado) {
+								$('select#microrregiao').append($('<option>').text(estado.nome).attr('value', estado.codigo));
+							});
+						},
+						error: function (e) {
+							console.log("error");
+						}
+					});
+				});
+
+				$("select#microrregiao").on('change', function(){
+					codigo_microrregiao = $(this).val();
+					initMap(codigo_microrregiao, getMunicipios('microrregiao', codigo_microrregiao));
+				});
+			});
+
+		</script>
 	</body>
 </html>
